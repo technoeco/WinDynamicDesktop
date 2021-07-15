@@ -24,7 +24,7 @@ AppUpdatesURL={#MyAppURL}
 DefaultDirName={autopf}\{#MyAppName}
 ChangesAssociations=yes
 DisableProgramGroupPage=yes
-; Remove the following line to run in administrative install mode (install for all users.)
+; Uncomment the following line to run in non administrative install mode (install for current user only.)
 PrivilegesRequired=lowest
 PrivilegesRequiredOverridesAllowed=dialog
 OutputBaseFilename={#MyAppName}_{#MyAppVersion}_Setup
@@ -39,6 +39,7 @@ OutputDir=..\dist
 Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "armenian"; MessagesFile: "compiler:Languages\Armenian.isl"
 Name: "brazilianportuguese"; MessagesFile: "compiler:Languages\BrazilianPortuguese.isl"
+Name: "bulgarian"; MessagesFile: "compiler:Languages\Bulgarian.isl"
 Name: "catalan"; MessagesFile: "compiler:Languages\Catalan.isl"
 Name: "corsican"; MessagesFile: "compiler:Languages\Corsican.isl"
 Name: "czech"; MessagesFile: "compiler:Languages\Czech.isl"
@@ -71,7 +72,7 @@ Source: "..\src\bin\Release\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignorever
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
 
 [Registry]
-Root: HKA; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "{#MyAppName}"; ValueData: "{app}\{#MyAppExeName}"; Flags: uninsdeletevalue; Tasks: startonboot
+Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "{#MyAppName}"; ValueData: "{app}\{#MyAppExeName}"; Flags: uninsdeletevalue; Tasks: startonboot
 Root: HKA; Subkey: "Software\Classes\{#MyAppAssocExt}\OpenWithProgids"; ValueType: string; ValueName: "{#MyAppAssocKey}"; ValueData: ""; Flags: uninsdeletekeyifempty uninsdeletevalue; Tasks: registerddw
 Root: HKA; Subkey: "Software\Classes\{#MyAppAssocKey}"; ValueType: string; ValueName: ""; ValueData: "{#MyAppAssocName}"; Flags: uninsdeletekey; Tasks: registerddw
 Root: HKA; Subkey: "Software\Classes\{#MyAppAssocKey}\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\{#MyAppExeName},0"; Tasks: registerddw
@@ -102,7 +103,7 @@ end;
 
 procedure CurStepChanged(CurStep : TSetupStep);
 begin
-  if (CurStep = ssPostInstall) and IsAdmin() then
+  if (CurStep = ssPostInstall) and IsAdminInstallMode() then
     SaveStringToFile(ExpandConstant('{app}\{#MyAppName}.pth'), ExpandConstant('%LocalAppData%\{#MyAppName}'), false);
 end;
 

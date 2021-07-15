@@ -71,6 +71,8 @@ namespace WinDynamicDesktop
             };
             notifyIcon.ContextMenuStrip = MainMenu.GetMenu();
             notifyIcon.MouseUp += OnNotifyIconMouseUp;
+
+            Localization.NotifyIfTestMode();
         }
 
         public static void ShowPopup(string message, string title = null)
@@ -104,11 +106,6 @@ namespace WinDynamicDesktop
 
         private void OnApplicationExit(object sender, EventArgs e)
         {
-            foreach (Form form in Application.OpenForms)
-            {
-                form.Close();
-            }
-
             if (notifyIcon != null)
             {
                 notifyIcon.Visible = false;

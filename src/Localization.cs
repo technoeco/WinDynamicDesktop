@@ -4,17 +4,22 @@
 
 using NGettext;
 using RestSharp;
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Net;
 using System.Reflection;
+using System.Text;
 using System.Windows.Forms;
 
 namespace WinDynamicDesktop
 {
     class Localization
     {
+        private static readonly string poeditorApiToken = Encoding.UTF8.GetString(Convert.FromBase64String(
+            "ODdlMGM3ZjRmMjE1YjRiMjkwNTE4NDUyMWE4Y2FkNTE="));
+
         public static List<string> languageCodes = new List<string>();
         public static List<string> languageNames = new List<string>();
 
@@ -33,7 +38,7 @@ namespace WinDynamicDesktop
                 currentLocale = languageCodes.Contains(systemLocale) ? systemLocale : "en";
                 JsonConfig.settings.language = currentLocale;
             }
-            else if (JsonConfig.settings.poeditorApiToken == null)
+            else if (!JsonConfig.settings.usePoeditorLanguage)
             {
                 LoadLocaleFromFile();
             }
@@ -45,7 +50,7 @@ namespace WinDynamicDesktop
 
             if (JsonConfig.firstRun)
             {
-                SelectLanguage();
+                SelectLanguage(true);
             }
         }
 
@@ -76,22 +81,14 @@ namespace WinDynamicDesktop
             }
         }
 
-        public static void SelectLanguage()
+        public static void SelectLanguage(bool exitOnCancel)
         {
             LanguageDialog langDialog = new LanguageDialog();
-            langDialog.ShowDialog();
-        }
-
-        public static string GetCefLocale()
-        {
-            string cefLocale = (currentLocale == "zh-Hans") ? "zh-CN" : currentLocale;
-
-            if (File.Exists(Path.Combine("cef", "locales", cefLocale.ToLower() + ".pak")))
+            DialogResult result = langDialog.ShowDialog();
+            if (result != DialogResult.OK && exitOnCancel)
             {
-                return cefLocale;
+                Environment.Exit(0);
             }
-
-            return "en-US";
         }
 
         public static string GetTranslation(string msg)
@@ -116,29 +113,48 @@ namespace WinDynamicDesktop
             }
         }
 
+        public static void NotifyIfTestMode()
+        {
+            if (JsonConfig.settings.usePoeditorLanguage && catalog != null)
+            {
+                AppContext.ShowPopup(string.Format(
+                    Localization.GetTranslation("Downloaded '{0}' translation from POEditor"), currentLocale));
+            }
+        }
+
         private static void LoadLanguages()
         {
             AddLanguage("Bahasa Indonesia", "id");  // Indonesian
+            AddLanguage("Dansk", "da");  // Danish
             AddLanguage("Deutsch", "de");  // German
             AddLanguage("English", "en");  // English
             AddLanguage("Español", "es");  // Spanish
             AddLanguage("Français", "fr");  // French
+            AddLanguage("Hrvatski", "hr");  // Croatian
             AddLanguage("Italiano", "it");  // Italian
             AddLanguage("Nederlands", "nl");  // Dutch
             AddLanguage("Polski", "pl");  // Polish
             AddLanguage("Português (do Brasil)", "pt-br");  // Portuguese (BR)
             AddLanguage("Pусский", "ru");  // Russian
             AddLanguage("Română", "ro");  // Romanian
+            AddLanguage("Svenska", "sv");  // Swedish
             AddLanguage("Tiếng Việt", "vi");  // Vietnamese
             AddLanguage("Türkçe", "tr");  // Turkish
+            AddLanguage("magyar", "hu");  // Hungarian
+            AddLanguage("suomi", "fi");  // Finnish
+            AddLanguage("íslenska", "is");  // Icelandic
             AddLanguage("Čeština", "cs");  // Czech
             AddLanguage("Ελληνικά", "el");  // Greek
             AddLanguage("Български", "bg");  // Bulgarian
             AddLanguage("Македонски", "mk");  // Macedonian
+            AddLanguage("Українська", "uk");  // Ukrainian
+            AddLanguage("عربي", "ar");  // Arabic
+            AddLanguage("عربي (متحده عرب امارات)", "ar-ae");  // Arabic (U.A.E.)
             AddLanguage("हिन्दी", "hi");  // Hindi
             AddLanguage("বাংলা", "bn");  // Bengali
-            AddLanguage("中文 (简体)", "zh-Hans");  // Chinese (Simplified)
+            AddLanguage("中文 (简体)", "zh-Hans");  // Chinese (simplified)
             AddLanguage("日本語", "ja");  // Japanese
+            AddLanguage("正體中文 (繁體)", "zh-Hant");  // Chinese (traditional)
             AddLanguage("한국어", "ko");  // Korean
         }
 
@@ -154,7 +170,7 @@ namespace WinDynamicDesktop
             ProxyWrapper.ApplyProxyToClient(client);
 
             var request = new RestRequest("/v2/projects/export", Method.POST);
-            request.AddParameter("api_token", JsonConfig.settings.poeditorApiToken);
+            request.AddParameter("api_token", poeditorApiToken);
             request.AddParameter("id", "293081");
             request.AddParameter("language", currentLocale);
             request.AddParameter("type", "mo");

@@ -12,6 +12,7 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using WinDynamicDesktop.COM;
 
 namespace WinDynamicDesktop
 {
@@ -47,6 +48,7 @@ namespace WinDynamicDesktop
             }
 
             this.previewerHost.Anchor &= ~AnchorStyles.Left;
+            this.displayComboBox.Width = newWidth;
             this.listView1.Width = newWidth;
             this.downloadButton.Left += (newWidth - oldWidth) / 2;
             this.applyButton.Left += (newWidth - oldWidth) / 2;
@@ -102,27 +104,34 @@ namespace WinDynamicDesktop
             Size thumbnailSize = ThemeThumbLoader.GetThumbnailSize(this);
             ListViewItem focusedItem = null;
 
-            foreach (ThemeConfig theme in themes)
+            foreach (ThemeConfig theme in themes.ToList())
             {
-                using (Image thumbnailImage = ThemeThumbLoader.GetThumbnailImage(theme, thumbnailSize, true))
+                try
                 {
-                    this.Invoke(new Action(() =>
+                    using (Image thumbnailImage = ThemeThumbLoader.GetThumbnailImage(theme, thumbnailSize, true))
                     {
-                        listView1.LargeImageList.Images.Add(thumbnailImage);
-                        string itemText = ThemeManager.GetThemeName(theme);
-                        if (JsonConfig.settings.favoriteThemes != null &&
-                            JsonConfig.settings.favoriteThemes.Contains(theme.themeId))
+                        this.Invoke(new Action(() =>
                         {
-                            itemText = "★ " + itemText;
-                        }
-                        ListViewItem newItem = listView1.Items.Add(itemText, listView1.LargeImageList.Images.Count - 1);
-                        newItem.Tag = theme.themeId;
+                            listView1.LargeImageList.Images.Add(thumbnailImage);
+                            string itemText = ThemeManager.GetThemeName(theme);
+                            if (JsonConfig.settings.favoriteThemes != null &&
+                                JsonConfig.settings.favoriteThemes.Contains(theme.themeId))
+                            {
+                                itemText = "★ " + itemText;
+                            }
+                            ListViewItem newItem = listView1.Items.Add(itemText, listView1.LargeImageList.Images.Count - 1);
+                            newItem.Tag = theme.themeId;
 
-                        if (activeTheme == null || activeTheme == theme.themeId)
-                        {
-                            focusedItem = newItem;
-                        }
-                    }));
+                            if (activeTheme == null || activeTheme == theme.themeId)
+                            {
+                                focusedItem = newItem;
+                            }
+                        }));
+                    }
+                }
+                catch (OutOfMemoryException)
+                {
+                    ThemeLoader.HandleError(new FailedToCreateThumbnail(theme.themeId));
                 }
             }
 
@@ -192,7 +201,7 @@ namespace WinDynamicDesktop
             else
             {
                 WallpaperShuffler.AddThemeToHistory(ThemeManager.currentTheme.themeId);
-                AppContext.wpEngine.RunScheduler();
+                AppContext.wpEngine.RunScheduler(true);
                 AppContext.ShowPopup(string.Format(_("New theme applied: {0}"),
                     ThemeManager.GetThemeName(ThemeManager.currentTheme)));
             }
@@ -233,6 +242,10 @@ namespace WinDynamicDesktop
             previewer.ViewModel.PreviewTheme(theme);
         }
 
+        // Code to change ListView appearance from https://stackoverflow.com/a/4463114/5504760
+        [DllImport("uxtheme.dll", ExactSpelling = true, CharSet = CharSet.Unicode)]
+        internal static extern int SetWindowTheme(IntPtr hwnd, string pszSubAppName, string pszSubIdList);
+
         private void ThemeDialog_Load(object sender, EventArgs e)
         {
             previewer = new WPF.ThemePreviewer();
@@ -240,7 +253,7 @@ namespace WinDynamicDesktop
 
             listView1.ContextMenuStrip = contextMenuStrip1;
             listView1.ListViewItemSorter = new CompareByItemText();
-            Win32Utils.SetWindowTheme(listView1.Handle, "Explorer", null);
+            SetWindowTheme(listView1.Handle, "Explorer", null);
 
             ImageList imageList = new ImageList();
             imageList.ColorDepth = ColorDepth.Depth32Bit;
@@ -250,6 +263,13 @@ namespace WinDynamicDesktop
 
             imageList.Images.Add(ThemeThumbLoader.ScaleImage(windowsWallpaper, thumbnailSize));
             listView1.Items.Add(_("None"), 0);
+
+            string[] displayNames = DisplayDevices.GetAllMonitorsFriendlyNames().ToArray();
+            for (int i = 0; i < displayNames.Length; i++)
+            {
+                displayComboBox.Items.Add(string.Format(_("Display {0} - {1}"), i + 1, displayNames[i]));
+            }
+            displayComboBox.SelectedIndex = 0;
 
             string activeTheme = ThemeManager.currentTheme?.themeId;
 
@@ -406,7 +426,8 @@ namespace WinDynamicDesktop
 
         private void OnDownloadDialogClosed(object sender, FormClosedEventArgs e)
         {
-            if (ThemeManager.IsThemeDownloaded(ThemeManager.themeSettings[selectedIndex - 1]))
+            if (e.CloseReason == CloseReason.UserClosing &&
+                ThemeManager.IsThemeDownloaded(ThemeManager.themeSettings[selectedIndex - 1]))
             {
                 if (((DownloadDialog)sender).applyPending)
                 {
@@ -423,7 +444,7 @@ namespace WinDynamicDesktop
         {
             ImportDialog importDialog = (ImportDialog)sender;
 
-            if (!importDialog.thumbnailsLoaded)
+            if (e.CloseReason == CloseReason.UserClosing && !importDialog.thumbnailsLoaded)
             {
                 e.Cancel = true;
                 LoadImportedThemes(ThemeManager.importedThemes, importDialog);
@@ -437,7 +458,7 @@ namespace WinDynamicDesktop
 
         private void OnFormClosing(object sender, FormClosingEventArgs e)
         {
-            if (JsonConfig.firstRun && ThemeManager.currentTheme == null)
+            if (e.CloseReason == CloseReason.UserClosing && JsonConfig.firstRun && ThemeManager.currentTheme == null)
             {
                 DialogResult result = MessageDialog.ShowQuestion(_("WinDynamicDesktop cannot dynamically update your " +
                     "wallpaper until you have selected a theme. Are you sure you want to continue without a theme " +
